@@ -17,7 +17,6 @@ pipeline {
             steps {
                 sh '''
                 echo "Cleaning npm cache and removing old node_modules..."
-                npm cache clean --force
                 rm -rf node_modules package-lock.json
                 npm install
                 '''
