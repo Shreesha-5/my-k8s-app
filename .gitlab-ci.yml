@@ -1,0 +1,56 @@
+stages:
+  - install
+  - build
+  - push
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  APP_NAME: "my-k8s-app"
+
+before_script:
+  - echo "Logging into Docker Hub..."
+  - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
+
+Install_Dependencies:
+  stage: install
+  image: node:18
+  script:
+    - npm install
+  artifacts:
+    paths:
+      - node_modules/
+
+Build_Docker_Image:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $APP_NAME:$CI_PIPELINE_IID .
+    - docker tag $APP_NAME:$CI_PIPELINE_IID $DOCKER_HUB_USERNAME/$APP_NAME:latest
+
+Push_Docker_Image:
+  stage: push
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker push $DOCKER_HUB_USERNAME/$APP_NAME:latest
+
+Deploy_to_Minikube:
+  stage: deploy
+  tags:
+  - shell   # run on your local Ubuntu runner
+  #image: alpine:latest
+  before_script:
+    #- apk add --no-cache curl bash docker
+    #- curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    #- install minikube-linux-amd64 /usr/local/bin/minikube
+    #- curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+    #- install kubectl /usr/local/bin/kubectl
+    - echo "Using local Minikube installed on Ubuntu..." 
+  script:
+    - minikube status || minikube start --driver=docker --memory=2048 --cpus=2
+    - kubectl apply -f k8s/deployment.yaml
+    - kubectl apply -f k8s/service.yaml
