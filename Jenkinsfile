@@ -5,7 +5,7 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                git branch: 'master',
+                git branch: 'main',
                     url: 'https://github.com/Shreesha-5/my-k8s-app.git'
             }
         }
