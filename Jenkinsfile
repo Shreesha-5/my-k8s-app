@@ -1,18 +1,26 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "shreeshakuragayala/my-k8s-app"
+    }
+
     stages {
 
-        stage('Checkout from GitHub') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Shreesha-5/my-k8s-app.git'
+                checkout scm
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                sh '''
+                echo "Cleaning npm cache and removing old node_modules..."
+                npm cache clean --force
+                rm -rf node_modules package-lock.json
+                npm install
+                '''
             }
         }
 
@@ -20,42 +28,52 @@ pipeline {
             steps {
                 sh '''
                 docker build -t my-k8s-app:${BUILD_NUMBER} .
-                docker tag my-k8s-app:${BUILD_NUMBER} shreeshakuragayla/my-k8s-app:${BUILD_NUMBER}
+                docker tag my-k8s-app:${BUILD_NUMBER} ${IMAGE_NAME}:${BUILD_NUMBER}
                 '''
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh 'docker push shreeshakuragayala/my-k8s-app:${BUILD_NUMBER}'
+                sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
 
-    stage('Start Minikube if not running') {
-    steps {
-        sh '''
-        if ! minikube status | grep -q "apiserver: Running"; then
-            echo "Minikube is not running. Starting now..."
-            minikube start --driver=docker --memory=2048 --cpus=2
-        fi
-        '''
-    }
-}
+        stage('Start Minikube if not running') {
+            steps {
+                sh '''
+                if ! minikube status | grep -q "apiserver: Running"; then
+                    echo "Minikube is not running. Starting now..."
+                    minikube start --driver=docker --memory=2048 --cpus=2
+                fi
+                '''
+            }
+        }
 
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                # Replace image tag inside deployment.yaml
+                # Replace IMAGE_TAG in deployment.yaml
                 sed -i "s/IMAGE_TAG/${BUILD_NUMBER}/g" k8s/deployment.yaml
 
-                # Load image into Minikube
-                minikube image load shreeshakuragayala/my-k8s-app:${BUILD_NUMBER}
+                # Load Docker image into Minikube
+                minikube image load ${IMAGE_NAME}:${BUILD_NUMBER}
 
-                # Apply manifests
+                # Apply Kubernetes manifests
                 minikube kubectl -- apply -f k8s/deployment.yaml
                 minikube kubectl -- apply -f k8s/service.yaml
                 '''
             }
+        }
+
+    }
+
+    post {
+        failure {
+            echo "Pipeline failed! Check logs for details."
+        }
+        success {
+            echo "Pipeline succeeded! Deployment complete."
         }
     }
 }
