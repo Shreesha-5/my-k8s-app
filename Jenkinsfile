@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "shreeshakuragayala/my-k8s-app"
+        IMAGE_NAME = "my-k8s-app"
     }
 
     stages {
@@ -23,21 +23,6 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                docker build -t my-k8s-app:${BUILD_NUMBER} .
-                docker tag my-k8s-app:${BUILD_NUMBER} ${IMAGE_NAME}:${BUILD_NUMBER}
-                '''
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
-            }
-        }
-
         stage('Start Minikube if not running') {
             steps {
                 sh '''
@@ -49,16 +34,17 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Build and Load Docker Image into Minikube') {
             steps {
                 sh '''
-                # Replace IMAGE_TAG in deployment.yaml
+                # Use Minikube Docker environment
+                eval $(minikube docker-env)
+
+                # Build image with tag
+                docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+
+                # Deploy to Kubernetes
                 sed -i "s/IMAGE_TAG/${BUILD_NUMBER}/g" k8s/deployment.yaml
-
-                # Load Docker image into Minikube
-                minikube image load ${IMAGE_NAME}:${BUILD_NUMBER}
-
-                # Apply Kubernetes manifests
                 minikube kubectl -- apply -f k8s/deployment.yaml
                 minikube kubectl -- apply -f k8s/service.yaml
                 '''
