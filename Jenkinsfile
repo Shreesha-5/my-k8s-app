@@ -47,6 +47,8 @@ pipeline {
                 sed -i "s/IMAGE_TAG/${BUILD_NUMBER}/g" k8s/deployment.yaml
                 minikube kubectl -- apply -f k8s/deployment.yaml
                 minikube kubectl -- apply -f k8s/service.yaml
+                minikube service my-k8s-app --url
+
                 '''
             }
         }
